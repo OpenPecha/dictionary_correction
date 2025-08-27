@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@300&family=Roboto+Condensed&display=swap");
+
+@font-face {
+  font-family: "Petsuk";
+  src: url("/font/petsuk.ttf");
+}
+
+@font-face {
+  font-family: "OuChan";
+  src: url("/font/OuChan2.ttf");
+}
+
+@font-face {
+  font-family: "OuChan";
+  src: url("/font/Jomolhari-Regular.ttf");
+}
+
+body {
+  font-family: "Lato", "Trebuchet MS", Roboto, Helvetica, Arial, sans-serif;
+}
