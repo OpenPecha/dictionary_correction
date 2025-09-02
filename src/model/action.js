@@ -91,12 +91,14 @@ export const getTasksOrAssignMore = async (groupId, userId, role) => {
         group_id: true,
         batch_id: true,
         state: true,
-        inference_transcript: true,
-        transcript: true,
-        reviewed_transcript: true,
-        final_reviewed_transcript: true,
-        url: true,
-        format: true,
+        diplomatic_context: true,
+        normalised_context: true,
+        corrected_context: true,
+        reviewed_context: true,
+        final_reviewed_context: true,
+        is_correct: true,
+        corrected_is_correct: true,
+        reviewed_is_correct: true,
         transcriber: { select: { name: true } },
         reviewer: { select: { name: true } },
         reviewer_rejected_count: true,
@@ -133,12 +135,14 @@ export const assignUnassignedTasks = async (
   //     id: true,
   //     group_id: true,
   //     state: true,
-  //     inference_transcript: true,
-  //     transcript: true,
-  //     reviewed_transcript: true,
-  //     final_reviewed_transcript: true,
-  //     url: true,
-  //     format: true,
+  //     diplomatic_context: true,
+  //     normalised_context: true,
+  //     corrected_context: true,
+  //     reviewed_context: true,
+  //     final_reviewed_context: true,
+  //     is_correct: true,
+  //     corrected_is_correct: true,
+  //     reviewed_is_correct: true,
   //     transcriber: { select: { name: true } },
   //     reviewer: { select: { name: true } },
   //     reviewer_rejected_count: true,
@@ -153,13 +157,19 @@ export const assignUnassignedTasks = async (
       WITH ordered_batches AS (
         SELECT DISTINCT 
           batch_id,
-          SUBSTRING(batch_id FROM '^[^-]+') as prefix,
-          CAST(REGEXP_REPLACE(
-            SPLIT_PART(REPLACE(REPLACE(batch_id, 'Correction-', ''), 'Manual-', ''), 'a', 1),
-            '[^0-9]',
-            '',
-            'g'
-          ) AS INTEGER) as numeric_part
+          SPLIT_PART(batch_id, '-', 1) as prefix,
+          COALESCE(
+            NULLIF(
+              REGEXP_REPLACE(
+                SPLIT_PART(batch_id, '-', 2),
+                '[^0-9]',
+                '',
+                'g'
+              ), 
+              ''
+            )::INTEGER, 
+            0
+          ) as numeric_part
         FROM "Task"
         WHERE group_id = ${groupId}
           AND state = ${state}::"State"
@@ -175,12 +185,14 @@ export const assignUnassignedTasks = async (
         t.group_id,
         t.state,
         t.batch_id,
-        t.inference_transcript,
-        t.transcript,
-        t.reviewed_transcript,
-        t.final_reviewed_transcript,
-        t.url,
-        t.format,
+        t.diplomatic_context,
+        t.normalised_context,
+        t.corrected_context,
+        t.reviewed_context,
+        t.final_reviewed_context,
+        t.is_correct,
+        t.corrected_is_correct,
+        t.reviewed_is_correct,
         t.reviewer_rejected_count,
         t.final_reviewer_rejected_count,
         tr.name as "transcriber.name",
@@ -297,29 +309,46 @@ export const updateTask = async (
   // Add role-specific fields
   switch (role) {
     case "TRANSCRIBER":
-      dataToUpdate.transcript =
-        changedTask.state === "trashed" ? null : transcript;
+      // Save yes/no decision in is_correct
+      if (task.is_correct !== undefined) {
+        dataToUpdate.is_correct = task.is_correct;
+      }
+      // Save corrections in corrected_context
+      if (task.corrected_context !== undefined) {
+        dataToUpdate.corrected_context = 
+          changedTask.state === "trashed" ? null : task.corrected_context;
+      }
       dataToUpdate.submitted_at = new Date().toISOString();
       dataToUpdate.duration = duration;
       break;
+    
     case "REVIEWER":
-      dataToUpdate.transcript =
-        changedTask.state === "transcribing" ? transcript : task.transcript;
-      dataToUpdate.reviewed_transcript =
-        changedTask.state === "accepted" ? transcript : null;
+      // Save yes/no decision in corrected_is_correct
+      if (task.corrected_is_correct !== undefined) {
+        dataToUpdate.corrected_is_correct = task.corrected_is_correct;
+      }
+      // Save corrections in reviewed_context
+      if (task.reviewed_context !== undefined) {
+        dataToUpdate.reviewed_context =
+          changedTask.state === "accepted" ? task.reviewed_context : null;
+      }
       dataToUpdate.reviewed_at = new Date().toISOString();
       dataToUpdate.reviewer_rejected_count =
         changedTask.state === "transcribing"
           ? task.reviewer_rejected_count + 1
           : task.reviewer_rejected_count;
       break;
+    
     case "FINAL_REVIEWER":
-      dataToUpdate.reviewed_transcript =
-        changedTask.state === "submitted"
-          ? transcript
-          : task.reviewed_transcript;
-      dataToUpdate.final_reviewed_transcript =
-        changedTask.state === "finalised" ? transcript : null;
+      // Save yes/no decision in reviewed_is_correct
+      if (task.reviewed_is_correct !== undefined) {
+        dataToUpdate.reviewed_is_correct = task.reviewed_is_correct;
+      }
+      // Save corrections in final_reviewed_context
+      if (task.final_reviewed_context !== undefined) {
+        dataToUpdate.final_reviewed_context =
+          changedTask.state === "finalised" ? task.final_reviewed_context : null;
+      }
       dataToUpdate.final_reviewed_at = new Date().toISOString();
       dataToUpdate.final_reviewer_rejected_count =
         changedTask.state === "submitted"

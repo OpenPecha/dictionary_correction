@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,8 +10,49 @@ datasource db {
 model Group {
   id    Int    @id @default(autoincrement())
   name  String @db.VarChar(255)
-  users User[]
   tasks Task[]
+  users User[]
+}
+
+model Task {
+  id                            String    @id
+  group_id                      Int
+  state                         State     @default(transcribing)
+  transcriber_id                Int?
+  reviewer_id                   Int?
+  created_at                    DateTime? @default(now())
+  submitted_at                  DateTime?
+  reviewed_at                   DateTime?
+  duration                      String?
+  batch_id                      String    @db.VarChar(255)
+  final_reviewer_id             Int?
+  final_reviewed_at             DateTime?
+  final_reviewer_rejected_count Int?      @default(0)
+  reviewer_rejected_count       Int?      @default(0)
+  corrected_context             String?
+  corrected_is_correct          Boolean?
+  diplomatic_context            String
+  final_reviewed_context        String?
+  is_correct                    Boolean?
+  normalised_context            String
+  reviewed_context              String?
+  reviewed_is_correct           Boolean?
+  final_reviewer                User?     @relation("FinalReviewerTasks", fields: [final_reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  group                         Group     @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer                      User?     @relation("ReviewerTasks", fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transcriber                   User?     @relation("TranscriberTasks", fields: [transcriber_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model User {
+  id                  Int    @id @default(autoincrement())
+  name                String @unique @db.VarChar(255)
+  email               String @unique @db.VarChar(255)
+  group_id            Int
+  role                Role   @default(TRANSCRIBER)
+  final_reviewer_task Task[] @relation("FinalReviewerTasks")
+  reviewer_task       Task[] @relation("ReviewerTasks")
+  transcriber_task    Task[] @relation("TranscriberTasks")
+  group               Group  @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 enum Role {
@@ -34,43 +72,4 @@ enum State {
 enum Format {
   line
   page
-}
-
-model Task {
-  id                            String    @id
-  group_id                      Int
-  batch_id                      String    @db.VarChar(255)
-  group                         Group     @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  state                         State     @default(transcribing)
-  inference_transcript          String?   @db.Text
-  transcript                    String?   @db.Text
-  reviewed_transcript           String?   @db.Text
-  final_reviewed_transcript     String?   @db.Text
-  url                           String    @unique @db.Text
-  transcriber_id                Int?
-  transcriber                   User?     @relation("TranscriberTasks", fields: [transcriber_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  reviewer_id                   Int?
-  reviewer                      User?     @relation("ReviewerTasks", fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  final_reviewer_id             Int?
-  final_reviewer                User?     @relation("FinalReviewerTasks", fields: [final_reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  created_at                    DateTime? @default(now())
-  submitted_at                  DateTime?
-  reviewed_at                   DateTime?
-  final_reviewed_at             DateTime?
-  duration                      String?
-  format                        Format    @default(line)
-  reviewer_rejected_count       Int?      @default(0)
-  final_reviewer_rejected_count Int?      @default(0)
-}
-
-model User {
-  id                  Int    @id @default(autoincrement())
-  name                String @unique @db.VarChar(255)
-  email               String @unique @db.VarChar(255)
-  group_id            Int
-  role                Role   @default(TRANSCRIBER)
-  transcriber_task    Task[] @relation("TranscriberTasks")
-  reviewer_task       Task[] @relation("ReviewerTasks")
-  final_reviewer_task Task[] @relation("FinalReviewerTasks")
-  group               Group  @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

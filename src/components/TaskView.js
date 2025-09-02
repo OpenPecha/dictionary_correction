@@ -2,34 +2,25 @@
 
 import { getTasksOrAssignMore, updateTask } from "@/model/action";
 import React, { useState, useRef, useEffect } from "react";
-import ActionButtons from "./ActionButtons";
+
 import { UserProgressStats } from "@/model/task";
 import Sidebar from "@/components/Sidebar";
 import toast from "react-hot-toast";
 import AppContext from "./AppContext";
-import DisplayImage from "@/components/DisplayImage";
-import TipTap from "@/components/TipTap";
-import { useEditor } from "@tiptap/react";
-import { Color } from "@tiptap/extension-color";
-import Document from "@tiptap/extension-document";
-import Paragraph from "@tiptap/extension-paragraph";
-import Text from "@tiptap/extension-text";
-import TextStyle from "@tiptap/extension-text-style";
-import HardBreak from "@tiptap/extension-hard-break";
-import History from "@tiptap/extension-history";
+
 
 const TaskView = ({ tasks, userDetail, language, userHistory }) => {
   const [languageSelected, setLanguageSelected] = useState("bo");
   const lang = language[languageSelected];
   const [taskList, setTaskList] = useState(tasks);
-  const [transcript, setTranscript] = useState("");
   const [userTaskStats, setUserTaskStats] = useState({
     completedTaskCount: 0,
     totalTaskCount: 0,
     totalTaskPassed: 0,
   }); // {completedTaskCount, totalTaskCount, totalTaskPassed}
   const [isLoading, setIsLoading] = useState(true);
-  const [output, setOutput] = useState(transcript);
+  const [isCorrect, setIsCorrect] = useState(null);
+  const [correctionText, setCorrectionText] = useState("");
   const { id: userId, group_id: groupId, role } = userDetail;
   const currentTimeRef = useRef(null);
 
@@ -37,29 +28,49 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
     return taskList.length != 0 ? taskList?.length - 1 : 0;
   }
 
+  const getContextValues = () => {
+    if (!taskList?.length) return { firstContext: "", secondContext: "" };
+    const currentTask = taskList[0];
+    switch (role) {
+      case "TRANSCRIBER":
+        return {
+          firstContext: currentTask?.diplomatic_context || "",
+          secondContext: currentTask?.normalised_context || "",
+        };
+      case "REVIEWER":
+        return {
+          firstContext: currentTask?.diplomatic_context || "",
+          secondContext: currentTask?.corrected_context || "",
+        };
+      case "FINAL_REVIEWER":
+        return {
+          firstContext: currentTask?.diplomatic_context || "",
+          secondContext: currentTask?.reviewed_context || "",
+        };
+      default:
+        return { firstContext: "", secondContext: "" };
+    }
+  };
+
   useEffect(() => {
     getUserProgress();
     // Assign a value to currentTimeRef.current
     currentTimeRef.current = new Date().toISOString();
     if (taskList?.length) {
       setIsLoading(false);
+      const currentTask = taskList[0];
       switch (role) {
         case "TRANSCRIBER":
-          taskList[0]?.transcript != null && taskList[0]?.transcript != ""
-            ? setTranscript(taskList[0]?.transcript)
-            : setTranscript(taskList[0]?.inference_transcript);
+          setIsCorrect(currentTask?.is_correct);
+          setCorrectionText(currentTask?.corrected_context || "");
           break;
         case "REVIEWER":
-          taskList[0].reviewed_transcript != null &&
-          taskList[0].reviewed_transcript != ""
-            ? setTranscript(taskList[0]?.reviewed_transcript)
-            : setTranscript(taskList[0]?.transcript);
+          setIsCorrect(currentTask?.corrected_is_correct);
+          setCorrectionText(currentTask?.reviewed_context || "");
           break;
         case "FINAL_REVIEWER":
-          taskList[0].final_reviewed_transcript != null &&
-          taskList[0].final_reviewed_transcript != ""
-            ? setTranscript(taskList[0]?.final_reviewed_transcript)
-            : setTranscript(taskList[0]?.reviewed_transcript);
+          setIsCorrect(currentTask?.reviewed_is_correct);
+          setCorrectionText(currentTask?.final_reviewed_context || "");
         default:
           break;
       }
@@ -78,53 +89,49 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
     });
   };
 
-  const editor = useEditor({
-    extensions: [
-      Document,
-      Paragraph,
-      Text,
-      TextStyle,
-      Color,
-      HardBreak,
-      History,
-    ],
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      setTranscript(html);
-    },
-    editable: true,
-    editorProps: {
-      attributes: {
-        class: "p-2 focus-within:outline-none",
-      },
-    },
-  });
 
-  const updateTaskAndIndex = async (action, transcript, task) => {
-    let temp_transcript = transcript;
+
+  const updateTaskAndIndex = async (action) => {
     try {
-      const { id } = task;
-      if (role === "FINAL_REVIEWER" && action === "submit") {
-        const final_transcript = editor.getText();
-        temp_transcript = final_transcript;
+      const { id } = taskList[0];
+      const updatedTask = { ...taskList[0] };
+      
+      // Update the correct fields based on role
+      switch (role) {
+        case "TRANSCRIBER":
+          updatedTask.is_correct = isCorrect;
+          updatedTask.corrected_context = correctionText;
+          break;
+        case "REVIEWER":
+          updatedTask.corrected_is_correct = isCorrect;
+          updatedTask.reviewed_context = correctionText;
+          break;
+        case "FINAL_REVIEWER":
+          updatedTask.reviewed_is_correct = isCorrect;
+          updatedTask.final_reviewed_context = correctionText;
+          break;
       }
+      
       // update the task in the database
-      const { msg, updatedTask } = await updateTask(
+      const { msg } = await updateTask(
         action,
         id,
-        temp_transcript,
-        task,
+        "", // transcript not used anymore
+        updatedTask,
         role,
         currentTimeRef.current
       );
+      
       if (msg?.error) {
         toast.error(msg.error);
       } else {
         toast.success(msg.success);
       }
+      
       if (action === "submit") {
         getUserProgress();
       }
+      
       if (getLastTaskIndex() != 0) {
         // remove the task updated from the task list
         setTaskList((prev) => prev.filter((task) => task.id !== id));
@@ -154,7 +161,6 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
         setTaskList={setTaskList}
         userHistory={userHistory}
         updateTaskAndIndex={updateTaskAndIndex}
-        transcript={transcript}
       >
         {/* Page content here */}
         <div className="w-full flex flex-col justify-center items-center">
@@ -186,12 +192,79 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
               )}
               <div className="w-[90%] my-5 md:my-10">
                 <div className="flex flex-col gap-10 border rounded-md shadow-sm shadow-gray-400 items-center p-4">
-                  <DisplayImage task={taskList[0]} />
-                  <TipTap
-                    transcript={transcript}
-                    editor={editor}
-                    format={taskList[0]?.format}
-                  />
+                  <div className="w-full space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-red-500 font-bold">Original:</label>
+                      <textarea
+                        value={getContextValues().firstContext}
+                        readOnly
+                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none"
+                        rows={3}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-green-500 font-bold">Suggested normalisation:</label>
+                      <textarea
+                        value={getContextValues().secondContext}
+                        readOnly
+                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none"
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <div className="text-center">
+                      <h3 className="text-xl font-bold mb-4">Is the suggested normalisation correct?</h3>
+                      <div className="flex justify-center gap-4 mb-4">
+                        <button
+                          onClick={() => setIsCorrect(true)}
+                          className={`px-8 py-3 rounded-md font-medium ${
+                            isCorrect === true
+                              ? "bg-green-500 text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-green-100"
+                          }`}
+                        >
+                          YES
+                        </button>
+                        <button
+                          onClick={() => setIsCorrect(false)}
+                          className={`px-8 py-3 rounded-md font-medium ${
+                            isCorrect === false
+                              ? "bg-red-500 text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-red-100"
+                          }`}
+                        >
+                          NO
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {isCorrect === false && (
+                      <div className="space-y-2">
+                        <label className="font-medium text-gray-700">If not, what should be the normalisation?</label>
+                        <textarea
+                          value={correctionText}
+                          onChange={(e) => setCorrectionText(e.target.value)}
+                          placeholder="text box to type a line"
+                          className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          rows={3}
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-center mt-6">
+                      <button
+                        onClick={() => updateTaskAndIndex("submit")}
+                        disabled={isCorrect === null}
+                        className={`px-8 py-3 rounded-md font-medium ${
+                          isCorrect === null
+                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : "bg-blue-500 text-white hover:bg-blue-600"
+                        }`}
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </>
