@@ -22,6 +22,15 @@ let languagesObject = {
     speed: "Speed",
     language: "Language",
     history: "History",
+    // Dictionary correction UI
+    original: "Original:",
+    suggested_normalisation: "Suggested normalisation:",
+    is_correct_question: "Is the suggested normalisation correct?",
+    yes: "YES",
+    no: "NO",
+    correction_prompt: "If not, what should be the normalisation?",
+    correction_placeholder: "text box to type a line",
+    download: "Download",
   },
   bo: {
     title: "Pecha HTR Tool",
@@ -46,6 +55,15 @@ let languagesObject = {
     speed: "མྱུར་ཚད།",
     language: "སྐད་ཡིག།",
     history: "ལོ་རྒྱུས།",
+    // Dictionary correction UI
+    original: "དངོས་གཞི།",
+    suggested_normalisation: "འདེམས་ཁའི་སྤྱིར་བསྒྱུར།",
+    is_correct_question: "འདེམས་ཁའི་སྤྱིར་བསྒྱུར་འདི་ཡག་པོ་ཡོད་དམ།",
+    yes: "ཡོད།",
+    no: "མེད།",
+    correction_prompt: "གལ་ཏེ་མིན་ན་སྤྱིར་བསྒྱུར་གང་དགོས་སམ།",
+    correction_placeholder: "ཚིག་ཕྲེང་འབྲི་སའི་སྒམ།",
+    download: "ཕབ་ལེན།",
   },
 };
 

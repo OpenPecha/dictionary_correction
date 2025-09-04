@@ -29,14 +29,11 @@ model Task {
   final_reviewed_at             DateTime?
   final_reviewer_rejected_count Int?      @default(0)
   reviewer_rejected_count       Int?      @default(0)
-  corrected_context             String?
-  corrected_is_correct          Boolean?
   diplomatic_context            String
-  final_reviewed_context        String?
-  is_correct                    Boolean?
   normalised_context            String
+  corrected_context             String?
   reviewed_context              String?
-  reviewed_is_correct           Boolean?
+  final_reviewed_context        String?
   final_reviewer                User?     @relation("FinalReviewerTasks", fields: [final_reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   group                         Group     @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reviewer                      User?     @relation("ReviewerTasks", fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

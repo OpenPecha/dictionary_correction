@@ -96,9 +96,6 @@ export const getTasksOrAssignMore = async (groupId, userId, role) => {
         corrected_context: true,
         reviewed_context: true,
         final_reviewed_context: true,
-        is_correct: true,
-        corrected_is_correct: true,
-        reviewed_is_correct: true,
         transcriber: { select: { name: true } },
         reviewer: { select: { name: true } },
         reviewer_rejected_count: true,
@@ -129,28 +126,6 @@ export const assignUnassignedTasks = async (
   taskField,
   userId
 ) => {
-  // const unassignedTasks = await prisma.task.findMany({
-  //   where: { group_id: groupId, state, [taskField]: null },
-  //   select: {
-  //     id: true,
-  //     group_id: true,
-  //     state: true,
-  //     diplomatic_context: true,
-  //     normalised_context: true,
-  //     corrected_context: true,
-  //     reviewed_context: true,
-  //     final_reviewed_context: true,
-  //     is_correct: true,
-  //     corrected_is_correct: true,
-  //     reviewed_is_correct: true,
-  //     transcriber: { select: { name: true } },
-  //     reviewer: { select: { name: true } },
-  //     reviewer_rejected_count: true,
-  //     final_reviewer_rejected_count: true,
-  //   },
-  //   orderBy: { id: "asc" },
-  //   take: ASSIGN_TASKS,
-  // });
 
   const unassignedTasks = await prisma.$queryRaw(
     Prisma.sql`
@@ -190,9 +165,6 @@ export const assignUnassignedTasks = async (
         t.corrected_context,
         t.reviewed_context,
         t.final_reviewed_context,
-        t.is_correct,
-        t.corrected_is_correct,
-        t.reviewed_is_correct,
         t.reviewer_rejected_count,
         t.final_reviewer_rejected_count,
         tr.name as "transcriber.name",
@@ -306,32 +278,28 @@ export const updateTask = async (
     state: changedTask.state,
   };
 
-  // Add role-specific fields
+  // Add role-specific fields - business logic is now handled in the UI
   switch (role) {
     case "TRANSCRIBER":
-      // Save yes/no decision in is_correct
-      if (task.is_correct !== undefined) {
-        dataToUpdate.is_correct = task.is_correct;
+      // Save the corrected_context (already processed by UI business logic)
+      if (changedTask.state !== "trashed") {
+        dataToUpdate.corrected_context = task.corrected_context;
+      } else {
+        dataToUpdate.corrected_context = null;
       }
-      // Save corrections in corrected_context
-      if (task.corrected_context !== undefined) {
-        dataToUpdate.corrected_context = 
-          changedTask.state === "trashed" ? null : task.corrected_context;
-      }
+      
       dataToUpdate.submitted_at = new Date().toISOString();
       dataToUpdate.duration = duration;
       break;
     
     case "REVIEWER":
-      // Save yes/no decision in corrected_is_correct
-      if (task.corrected_is_correct !== undefined) {
-        dataToUpdate.corrected_is_correct = task.corrected_is_correct;
+      // Save the reviewed_context (already processed by UI business logic)
+      if (changedTask.state === "accepted") {
+        dataToUpdate.reviewed_context = task.reviewed_context;
+      } else {
+        dataToUpdate.reviewed_context = null;
       }
-      // Save corrections in reviewed_context
-      if (task.reviewed_context !== undefined) {
-        dataToUpdate.reviewed_context =
-          changedTask.state === "accepted" ? task.reviewed_context : null;
-      }
+      
       dataToUpdate.reviewed_at = new Date().toISOString();
       dataToUpdate.reviewer_rejected_count =
         changedTask.state === "transcribing"
@@ -340,15 +308,13 @@ export const updateTask = async (
       break;
     
     case "FINAL_REVIEWER":
-      // Save yes/no decision in reviewed_is_correct
-      if (task.reviewed_is_correct !== undefined) {
-        dataToUpdate.reviewed_is_correct = task.reviewed_is_correct;
+      // Save the final_reviewed_context (already processed by UI business logic)
+      if (changedTask.state === "finalised") {
+        dataToUpdate.final_reviewed_context = task.final_reviewed_context;
+      } else {
+        dataToUpdate.final_reviewed_context = null;
       }
-      // Save corrections in final_reviewed_context
-      if (task.final_reviewed_context !== undefined) {
-        dataToUpdate.final_reviewed_context =
-          changedTask.state === "finalised" ? task.final_reviewed_context : null;
-      }
+      
       dataToUpdate.final_reviewed_at = new Date().toISOString();
       dataToUpdate.final_reviewer_rejected_count =
         changedTask.state === "submitted"

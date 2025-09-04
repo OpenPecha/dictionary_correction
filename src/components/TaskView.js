@@ -61,15 +61,15 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
       const currentTask = taskList[0];
       switch (role) {
         case "TRANSCRIBER":
-          setIsCorrect(currentTask?.is_correct);
+          setIsCorrect(null); // Reset to null, will be set by user interaction
           setCorrectionText(currentTask?.corrected_context || "");
           break;
         case "REVIEWER":
-          setIsCorrect(currentTask?.corrected_is_correct);
+          setIsCorrect(null); // Reset to null, will be set by user interaction
           setCorrectionText(currentTask?.reviewed_context || "");
           break;
         case "FINAL_REVIEWER":
-          setIsCorrect(currentTask?.reviewed_is_correct);
+          setIsCorrect(null); // Reset to null, will be set by user interaction
           setCorrectionText(currentTask?.final_reviewed_context || "");
         default:
           break;
@@ -96,19 +96,34 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
       const { id } = taskList[0];
       const updatedTask = { ...taskList[0] };
       
-      // Update the correct fields based on role
+      // Apply business logic based on role and user's YES/NO decision
       switch (role) {
         case "TRANSCRIBER":
           updatedTask.is_correct = isCorrect;
-          updatedTask.corrected_context = correctionText;
+          // Business rule: If YES → use normalised_context, If NO → use correctionText
+          if (isCorrect === true) {
+            updatedTask.corrected_context = taskList[0].normalised_context;
+          } else if (isCorrect === false) {
+            updatedTask.corrected_context = correctionText;
+          }
           break;
         case "REVIEWER":
           updatedTask.corrected_is_correct = isCorrect;
-          updatedTask.reviewed_context = correctionText;
+          // Business rule: If YES → use corrected_context, If NO → use correctionText
+          if (isCorrect === true) {
+            updatedTask.reviewed_context = taskList[0].corrected_context;
+          } else if (isCorrect === false) {
+            updatedTask.reviewed_context = correctionText;
+          }
           break;
         case "FINAL_REVIEWER":
           updatedTask.reviewed_is_correct = isCorrect;
-          updatedTask.final_reviewed_context = correctionText;
+          // Business rule: If YES → use reviewed_context, If NO → use correctionText
+          if (isCorrect === true) {
+            updatedTask.final_reviewed_context = taskList[0].reviewed_context;
+          } else if (isCorrect === false) {
+            updatedTask.final_reviewed_context = correctionText;
+          }
           break;
       }
       
@@ -194,7 +209,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                 <div className="flex flex-col gap-10 border rounded-md shadow-sm shadow-gray-400 items-center p-4">
                   <div className="w-full space-y-4">
                     <div className="space-y-2">
-                      <label className="text-red-500 font-bold">Original:</label>
+                      <label className="text-red-500 font-bold">{lang.original}</label>
                       <textarea
                         value={getContextValues().firstContext}
                         readOnly
@@ -203,7 +218,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-green-500 font-bold">Suggested normalisation:</label>
+                      <label className="text-green-500 font-bold">{lang.suggested_normalisation}</label>
                       <textarea
                         value={getContextValues().secondContext}
                         readOnly
@@ -213,57 +228,45 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                     </div>
                     
                     <div className="text-center">
-                      <h3 className="text-xl font-bold mb-4">Is the suggested normalisation correct?</h3>
+                      <h3 className="text-xl font-bold mb-4">{lang.is_correct_question}</h3>
                       <div className="flex justify-center gap-4 mb-4">
                         <button
                           onClick={() => setIsCorrect(true)}
                           className={`px-8 py-3 rounded-md font-medium ${
                             isCorrect === true
-                              ? "bg-green-500 text-white"
-                              : "bg-gray-200 text-gray-700 hover:bg-green-100"
+                              ? "bg-green-500 text-white shadow-lg transform scale-105"
+                              : "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
                           }`}
                         >
-                          YES
+                          {lang.yes}
                         </button>
                         <button
                           onClick={() => setIsCorrect(false)}
                           className={`px-8 py-3 rounded-md font-medium ${
                             isCorrect === false
-                              ? "bg-red-500 text-white"
-                              : "bg-gray-200 text-gray-700 hover:bg-red-100"
+                              ? "bg-red-500 text-white shadow-lg transform scale-105"
+                              : "bg-red-100 text-red-700 border border-red-300 hover:bg-red-200"
                           }`}
                         >
-                          NO
+                          {lang.no}
                         </button>
                       </div>
                     </div>
                     
                     {isCorrect === false && (
                       <div className="space-y-2">
-                        <label className="font-medium text-gray-700">If not, what should be the normalisation?</label>
+                        <label className="font-medium text-gray-700">{lang.correction_prompt}</label>
                         <textarea
                           value={correctionText}
                           onChange={(e) => setCorrectionText(e.target.value)}
-                          placeholder="text box to type a line"
+                          placeholder={lang.correction_placeholder}
                           className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           rows={3}
                         />
                       </div>
                     )}
                     
-                    <div className="flex justify-center mt-6">
-                      <button
-                        onClick={() => updateTaskAndIndex("submit")}
-                        disabled={isCorrect === null}
-                        className={`px-8 py-3 rounded-md font-medium ${
-                          isCorrect === null
-                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            : "bg-blue-500 text-white hover:bg-blue-600"
-                        }`}
-                      >
-                        Submit
-                      </button>
-                    </div>
+
                   </div>
                 </div>
               </div>
