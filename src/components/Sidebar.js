@@ -78,12 +78,6 @@ const Sidebar = ({
                 transcript={transcript}
                 role={role}
               />
-              <RightSidebar>
-                <iframe
-                  className="w-full h-full"
-                  src="https://docs.google.com/spreadsheets/d/e/2PACX-1vT5gDbwko0iKrR46GjJgsmMgGQXc6EiC9xBugl8BvV66pPz-czBeyO1DfVsti0jg-EJqTZ7dSUCu_qC/pubhtml?gid=991898896&amp;single=true&amp;widget=true&amp;headers=false"
-                ></iframe>
-              </RightSidebar>
             </section>
             <section className="px-4 py-4 border-b border-b-[#384451]">
               <h3 className="uppercase font-bold mb-2">{lang.project}</h3>
@@ -172,9 +166,24 @@ const Sidebar = ({
                 <span className=" text-right">{totalTaskCount}</span>
               </div>
             </section>
-            <section className="px-4 py-3 border-b border-b-[#384451] flex gap-2">
+            <section className="px-4 py-3 border-b border-b-[#384451] flex gap-2 items-center">
               <h3 className="uppercase font-bold mb-2">{lang.language}</h3>
               <LanguageToggle />
+              <div className="flex-1"></div>
+              <Link
+                href="/download"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium flex items-center gap-1"
+              >
+                <svg 
+                  className="w-4 h-4" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {lang.download}
+              </Link>
             </section>
             {role === "FINAL_REVIEWER" && (
               <section className="px-4 py-3 border-b border-b-[#384451]">

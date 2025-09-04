@@ -213,7 +213,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                       <textarea
                         value={getContextValues().firstContext}
                         readOnly
-                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none"
+                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none text-lg"
                         rows={3}
                       />
                     </div>
@@ -222,7 +222,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                       <textarea
                         value={getContextValues().secondContext}
                         readOnly
-                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none"
+                        className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none text-lg"
                         rows={3}
                       />
                     </div>
@@ -259,8 +259,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                         <textarea
                           value={correctionText}
                           onChange={(e) => setCorrectionText(e.target.value)}
-                          placeholder={lang.correction_placeholder}
-                          className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
                           rows={3}
                         />
                       </div>
