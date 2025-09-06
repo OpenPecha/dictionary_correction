@@ -4,7 +4,7 @@ import { BsCheckLg, BsXLg } from "react-icons/bs";
 import { useContext, useEffect } from "react";
 import AppContext from "./AppContext";
 import { AiOutlineStop } from "react-icons/ai";
-const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
+const ActionButtons = ({ updateTaskAndIndex, tasks, role }) => {
   // a = 65 submit, x = 88 reject , s = 83 save, t = 84 trash
   const value = useContext(AppContext);
   let { lang } = value;
@@ -40,7 +40,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
         tooltipText="Submit(Alt + a)"
         icon={BsCheckLg}
         text={lang.submit}
-        onClickAction={() => updateTaskAndIndex("submit", transcript, tasks[0])}
+        onClickAction={() => updateTaskAndIndex("submit")}
       />
       {role !== "TRANSCRIBER" && (
         <ButtonWithTooltip
@@ -50,7 +50,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
           icon={BsXLg}
           text={lang.reject}
           onClickAction={() =>
-            updateTaskAndIndex("reject", transcript, tasks[0])
+            updateTaskAndIndex("reject")
           }
         />
       )}
@@ -63,7 +63,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
           icon={AiOutlineStop}
           text={lang.ignore}
           onClickAction={() =>
-            updateTaskAndIndex("trash", transcript, tasks[0])
+            updateTaskAndIndex("trash")
           }
         />
       )}

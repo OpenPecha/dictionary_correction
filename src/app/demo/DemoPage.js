@@ -12,7 +12,8 @@ const DemoPage = ({ userDetail, language, tasks, userHistory }) => {
   const lang = language[languageSelected];
   const [taskList, setTaskList] = useState(tasks);
   const [historyList, setHistoryList] = useState(userHistory); // {completedTaskCount, totalTaskCount, totalTaskPassed}
-  const [transcript, setTranscript] = useState("");
+  const [correctionText, setCorrectionText] = useState("");
+  const [isCorrect, setIsCorrect] = useState(null);
   const audioRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const { id: userId, group_id: groupId, role } = userDetail;
@@ -20,26 +21,58 @@ const DemoPage = ({ userDetail, language, tasks, userHistory }) => {
   useEffect(() => {
     if (taskList?.length) {
       setIsLoading(false);
-      taskList[0]?.transcript != null && taskList[0]?.transcript != ""
-        ? setTranscript(taskList[0]?.transcript)
-        : setTranscript(taskList[0]?.inference_transcript);
+      const currentTask = taskList[0];
+      // Initialize correction text to empty - user hasn't made decision yet
+      setCorrectionText("");
+      setIsCorrect(null);
     } else {
       setIsLoading(false);
     }
-  }, [taskList]);
+  }, [taskList, role]);
 
-  const updateTaskAndIndex = async (action, transcript, task) => {
+  const updateTaskAndIndex = async (action) => {
     try {
+      if (!taskList?.length) return;
+      
+      const task = taskList[0];
       const { id } = task;
-      const changeState = await changeTaskState(task, role, action);
+      const updatedTask = { ...task };
+      
+      // Apply context updates based on role and user's decision
+      switch (role) {
+        case "TRANSCRIBER":
+          updatedTask.is_correct = isCorrect;
+          if (isCorrect === true) {
+            updatedTask.corrected_context = task.normalised_context;
+          } else if (isCorrect === false) {
+            updatedTask.corrected_context = correctionText;
+          }
+          break;
+        case "REVIEWER":
+          updatedTask.corrected_is_correct = isCorrect;
+          if (isCorrect === true) {
+            updatedTask.reviewed_context = task.corrected_context;
+          } else if (isCorrect === false) {
+            updatedTask.reviewed_context = correctionText;
+          }
+          break;
+        case "FINAL_REVIEWER":
+          updatedTask.reviewed_is_correct = isCorrect;
+          if (isCorrect === true) {
+            updatedTask.final_reviewed_context = task.reviewed_context;
+          } else if (isCorrect === false) {
+            updatedTask.final_reviewed_context = correctionText;
+          }
+          break;
+      }
+      
+      const changeState = await changeTaskState(updatedTask, role, action);
       // remove the task from the tasklist and add to history
       setTaskList((prev) => prev.filter((task) => task.id !== id));
       setHistoryList((prev) => [
         {
-          ...task,
+          ...updatedTask,
           state: changeState.state,
-          transcript: changeState.state === "trashed" ? null : transcript,
-          reviewed_transcript: null,
           submitted_at: new Date().toISOString(),
         },
         ...prev,
@@ -74,29 +107,83 @@ const DemoPage = ({ userDetail, language, tasks, userHistory }) => {
                     <span>{taskList[0].transcriber?.name}</span>
                   </p>
                 )}
-                <div className="flex flex-1 flex-col w-11/12 mt-5 md:mt-20">
-                  <div className="flex flex-col gap-4 border rounded-md shadow-sm shadow-gray-400 items-center p-4 md:p-6">
-                    <Image
-                      src={taskList[0]?.url}
-                      alt="image"
-                      width={1500}
-                      height={300}
-                      className="rounded-md h-full"
-                    />
-                    <textarea
-                      value={transcript || ""}
-                      onChange={(e) => setTranscript(e.target.value)}
-                      className="rounded-md p-4 border border-slate-400 w-full text-xl"
-                      placeholder="Type here..."
-                      rows={2}
-                      id="transcript"
-                    ></textarea>
+                <div className="w-[90%] my-5 md:my-10">
+                  <div className="flex flex-col gap-10 border rounded-md shadow-sm shadow-gray-400 items-center p-4">
+                    <div className="w-full space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-red-500 font-bold">{lang.original}</label>
+                        <textarea
+                          value={taskList[0]?.diplomatic_context || ""}
+                          readOnly
+                          className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none text-4xl"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-green-500 font-bold">{lang.suggested_normalisation}</label>
+                        <textarea
+                          value={(() => {
+                            const currentTask = taskList[0];
+                            switch (role) {
+                              case "TRANSCRIBER":
+                                return currentTask?.normalised_context || "";
+                              case "REVIEWER":
+                                return currentTask?.corrected_context || "";
+                              case "FINAL_REVIEWER":
+                                return currentTask?.reviewed_context || "";
+                              default:
+                                return "";
+                            }
+                          })()}
+                          readOnly
+                          className="w-full p-2 border rounded-md bg-gray-50 text-gray-800 resize-none text-4xl"
+                          rows={3}
+                        />
+                      </div>
+                      
+                      <div className="text-center">
+                        <h3 className="text-xl font-bold mb-4">{lang.is_correct_question}</h3>
+                        <div className="flex justify-center gap-4 mb-4">
+                          <button
+                            onClick={() => setIsCorrect(true)}
+                            className={`px-8 py-3 rounded-md font-medium ${
+                              isCorrect === true
+                                ? "bg-green-500 text-white shadow-lg transform scale-105"
+                                : "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
+                            }`}
+                          >
+                            {lang.yes}
+                          </button>
+                          <button
+                            onClick={() => setIsCorrect(false)}
+                            className={`px-8 py-3 rounded-md font-medium ${
+                              isCorrect === false
+                                ? "bg-red-500 text-white shadow-lg transform scale-105"
+                                : "bg-red-100 text-red-700 border border-red-300 hover:bg-red-200"
+                            }`}
+                          >
+                            {lang.no}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {isCorrect === false && (
+                        <div className="space-y-2">
+                          <label className="font-medium text-gray-700">{lang.correction_prompt}</label>
+                          <textarea
+                            value={correctionText}
+                            onChange={(e) => setCorrectionText(e.target.value)}
+                            className="w-full p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-4xl"
+                            rows={3}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <ActionButtons
                   updateTaskAndIndex={updateTaskAndIndex}
                   tasks={taskList}
-                  transcript={transcript}
                   role={role}
                 />
               </>

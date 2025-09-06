@@ -3,8 +3,11 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import languagesObject from "../../../data/language";
+import { useSearchParams } from 'next/navigation';
 
 export default function DownloadPage() {
+  const searchParams = useSearchParams();
+  const session = searchParams.get('session');
   const [languageSelected, setLanguageSelected] = useState("bo");
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -38,6 +41,11 @@ export default function DownloadPage() {
       return;
     }
 
+    if (!session) {
+      alert('User session not found. Please access this page with a valid session.');
+      return;
+    }
+
     setIsDownloading(true);
     
     try {
@@ -50,6 +58,7 @@ export default function DownloadPage() {
           groupId: selectedGroup,
           fromDate,
           toDate,
+          userEmail: session,
         }),
       });
 
@@ -64,7 +73,8 @@ export default function DownloadPage() {
         a.click();
         window.URL.revokeObjectURL(url);
       } else {
-        alert('Error downloading file');
+        const errorData = await response.json();
+        alert(errorData.error || 'Error downloading file');
       }
     } catch (error) {
       console.error('Download error:', error);

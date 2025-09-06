@@ -30,17 +30,17 @@ export async function createTasksFromCSV(formData) {
     tasksToCreate = await Promise.all(
       parsedTasksFile.map((row) => {
         // Extract data from the CSV row
-        const inference_transcript = row.inference_transcript;
+        const diplomatic_context = row.diplomatic_context;
+        const normalised_context = row.normalised_context;
         const id = row.id;
-        const url = row.url;
         const batch_id = row.batch_id;
 
         // Return task data as an object
         return {
           group_id: parseInt(groupId),
-          inference_transcript: inference_transcript,
+          diplomatic_context: diplomatic_context,
+          normalised_context: normalised_context,
           id: id,
-          url: url,
           batch_id: batch_id,
         };
       })
@@ -224,9 +224,9 @@ export const getTranscriberTaskList = async (id, dates, groupId) => {
           group_id: parseInt(groupId),
         },
         select: {
-          inference_transcript: true,
-          transcript: true,
-          reviewed_transcript: true,
+          diplomatic_context: true,
+          corrected_context: true,
+          reviewed_context: true,
           state: true,
         },
       });
@@ -238,9 +238,9 @@ export const getTranscriberTaskList = async (id, dates, groupId) => {
           group_id: parseInt(groupId),
         },
         select: {
-          inference_transcript: true,
-          transcript: true,
-          reviewed_transcript: true,
+          diplomatic_context: true,
+          corrected_context: true,
+          reviewed_context: true,
           state: true,
         },
       });
@@ -406,8 +406,8 @@ export const getReviewerTaskList = async (id, dates) => {
         },
         select: {
           state: true,
-          reviewed_transcript: true,
-          final_reviewed_transcript: true,
+          reviewed_context: true,
+          final_reviewed_context: true,
         },
       });
       return filteredTasks;
@@ -418,8 +418,8 @@ export const getReviewerTaskList = async (id, dates) => {
         },
         select: {
           state: true,
-          reviewed_transcript: true,
-          final_reviewed_transcript: true,
+          reviewed_context: true,
+          final_reviewed_context: true,
         },
       });
       return filteredTasks;

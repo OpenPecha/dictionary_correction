@@ -19,7 +19,6 @@ const Sidebar = ({
   setTaskList,
   userHistory,
   updateTaskAndIndex,
-  transcript,
 }) => {
   const { completedTaskCount, totalTaskCount, totalTaskPassed } = userTaskStats;
   const value = useContext(AppContext);
@@ -75,7 +74,6 @@ const Sidebar = ({
               <ActionButtons
                 updateTaskAndIndex={updateTaskAndIndex}
                 tasks={taskList}
-                transcript={transcript}
                 role={role}
               />
             </section>
@@ -170,20 +168,22 @@ const Sidebar = ({
               <h3 className="uppercase font-bold mb-2">{lang.language}</h3>
               <LanguageToggle />
               <div className="flex-1"></div>
-              <Link
-                href="/download"
-                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium flex items-center gap-1"
-              >
-                <svg 
-                  className="w-4 h-4" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+              {(role === "REVIEWER" || role === "FINAL_REVIEWER") && (
+                <Link
+                  href={`/download?session=${userDetail?.email}`}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium flex items-center gap-1"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {lang.download}
-              </Link>
+                  <svg 
+                    className="w-4 h-4" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {lang.download}
+                </Link>
+              )}
             </section>
             {role === "FINAL_REVIEWER" && (
               <section className="px-4 py-3 border-b border-b-[#384451]">

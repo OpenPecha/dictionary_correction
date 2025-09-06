@@ -3,12 +3,32 @@ import prisma from '@/service/db';
 
 export async function POST(request) {
   try {
-    const { groupId, fromDate, toDate } = await request.json();
+    const { groupId, fromDate, toDate, userEmail } = await request.json();
 
-    if (!groupId || !fromDate || !toDate) {
+    if (!groupId || !fromDate || !toDate || !userEmail) {
       return NextResponse.json(
-        { error: 'Group ID, from date, and to date are required' },
+        { error: 'Group ID, from date, to date, and user email are required' },
         { status: 400 }
+      );
+    }
+
+    // Verify user exists and has the correct role for download access
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail },
+      select: { role: true, id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      );
+    }
+
+    if (user.role !== 'REVIEWER' && user.role !== 'FINAL_REVIEWER') {
+      return NextResponse.json(
+        { error: 'Access denied. Only reviewers and final reviewers can download data.' },
+        { status: 403 }
       );
     }
 

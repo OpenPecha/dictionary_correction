@@ -1,6 +1,6 @@
 let languagesObject = {
   en: {
-    title: "Pecha HTR Tool",
+    title: "Dictionary Checking Tool",
     project: "Project Info",
     user: "User",
     group: "Group",
@@ -28,12 +28,12 @@ let languagesObject = {
     is_correct_question: "Is the suggested normalisation correct?",
     yes: "YES",
     no: "NO",
-    correction_prompt: "If not, what should be the normalisation?",
+    correction_prompt: "If not, what should the normalised form be?",
     correction_placeholder: "text box to type a line",
     download: "Download",
   },
   bo: {
-    title: "Pecha HTR Tool",
+    title: "Dictionary Checking Tool",
     project: "ལས་འཆར་ཆ་འཕྲིན།",
     user: "སྤྱོད་མཁན།",
     group: "སྡེ་ཚན།",
