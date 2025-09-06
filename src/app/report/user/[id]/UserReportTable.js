@@ -64,7 +64,7 @@ const UserReportTable = ({ userTaskRecord }) => {
                     : ""}
                 </td>
               </tr>
-            ))
+            ))}
           </tbody>
         </table>
       </div>
