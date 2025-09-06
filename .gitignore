@@ -8,9 +8,10 @@
 # Next.js build output
 .next/
 out/
-
+__tests__/
 # TypeScript declaration file
 next-env.d.ts
+
 
 # Dependencies
 node_modules/
