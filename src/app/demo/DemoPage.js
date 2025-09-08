@@ -173,7 +173,7 @@ const DemoPage = ({ userDetail, language, tasks, userHistory }) => {
                           <textarea
                             value={correctionText}
                             onChange={(e) => setCorrectionText(e.target.value)}
-                            className="w-full p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-4xl"
+                            className="w-full p-3 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-4xl text-black"
                             rows={3}
                           />
                         </div>
