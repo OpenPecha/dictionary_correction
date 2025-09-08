@@ -29,7 +29,10 @@ let languagesObject = {
     yes: "YES",
     no: "NO",
     correction_prompt: "If not, what should the normalised form be?",
+    correction_instruction: "Please only type the expansion that goes between the square brackets.",
     correction_placeholder: "text box to type a line",
+    validation_select_option: "Please select YES or NO before submitting.",
+    validation_correction_required: "Please provide the normalized form when selecting NO.",
     download: "Download",
   },
   bo: {
@@ -62,7 +65,10 @@ let languagesObject = {
     yes: "ཡོད།",
     no: "མེད།",
     correction_prompt: "གལ་ཏེ་མིན་ན་སྤྱིར་བསྒྱུར་གང་དགོས་སམ།",
+    correction_instruction: "ཟུར་ཐོ་གུ་ཡངས་ནང་དུ་ཡོད་པའི་རྒྱ་ཆེ་རུ་འགྱུར་བ་ཁོ་ན་འབྲི་རོགས།",
     correction_placeholder: "ཚིག་ཕྲེང་འབྲི་སའི་སྒམ།",
+    validation_select_option: "དང་ལེན་མ་བྱས་གོང་'ཡོད།'ཡང་ན་'མེད།'གང་རུང་གཅིག་འདེམ་རོགས།",
+    validation_correction_required: "'མེད།'འདེམས་རྐྱེན་གྱི་སྤྱིར་བསྒྱུར་གྱི་རྣམ་པ་འབྲི་རོགས།",
     download: "ཕབ་ལེན།",
   },
 };

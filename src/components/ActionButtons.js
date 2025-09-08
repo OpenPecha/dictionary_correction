@@ -4,7 +4,7 @@ import { BsCheckLg, BsXLg } from "react-icons/bs";
 import { useContext, useEffect } from "react";
 import AppContext from "./AppContext";
 import { AiOutlineStop } from "react-icons/ai";
-const ActionButtons = ({ updateTaskAndIndex, tasks, role }) => {
+const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
   // a = 65 submit, x = 88 reject , s = 83 save, t = 84 trash
   const value = useContext(AppContext);
   let { lang } = value;
@@ -40,7 +40,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, role }) => {
         tooltipText="Submit(Alt + a)"
         icon={BsCheckLg}
         text={lang.submit}
-        onClickAction={() => updateTaskAndIndex("submit")}
+        onClickAction={() => updateTaskAndIndex("submit", transcript, tasks[0])}
       />
       {role !== "TRANSCRIBER" && (
         <ButtonWithTooltip
@@ -50,7 +50,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, role }) => {
           icon={BsXLg}
           text={lang.reject}
           onClickAction={() =>
-            updateTaskAndIndex("reject")
+            updateTaskAndIndex("reject", transcript, tasks[0])
           }
         />
       )}
@@ -63,7 +63,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, role }) => {
           icon={AiOutlineStop}
           text={lang.ignore}
           onClickAction={() =>
-            updateTaskAndIndex("trash")
+            updateTaskAndIndex("trash", transcript, tasks[0])
           }
         />
       )}
@@ -83,6 +83,7 @@ const ButtonWithTooltip = ({
     <button
       id={id}
       type="button"
+      title={tooltipText}
       className={`focus:outline-none text-white ${bgColor} font-medium text-md w-24 h-full py-4`}
       onClick={onClickAction}
     >

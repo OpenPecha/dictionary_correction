@@ -91,7 +91,30 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
 
 
 
+  const validateSubmission = () => {
+    // User must select either YES or NO
+    if (isCorrect === null) {
+      return { isValid: false, message: lang.validation_select_option || "Please select YES or NO before submitting." };
+    }
+    
+    // If user selected NO, they must provide correction text
+    if (isCorrect === false && correctionText.trim() === "") {
+      return { isValid: false, message: lang.validation_correction_required || "Please provide the normalized form when selecting NO." };
+    }
+    
+    return { isValid: true, message: "" };
+  };
+
   const updateTaskAndIndex = async (action) => {
+    // Validate before submission
+    if (action === "submit") {
+      const validation = validateSubmission();
+      if (!validation.isValid) {
+        toast.error(validation.message);
+        return;
+      }
+    }
+
     try {
       const { id } = taskList[0];
       const updatedTask = { ...taskList[0] };
@@ -256,6 +279,9 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
                     {isCorrect === false && (
                       <div className="space-y-2">
                         <label className="font-medium text-gray-700">{lang.correction_prompt}</label>
+                        <p className="text-sm text-blue-600 font-medium italic">
+                          {lang.correction_instruction}
+                        </p>
                         <textarea
                           value={correctionText}
                           onChange={(e) => setCorrectionText(e.target.value)}
