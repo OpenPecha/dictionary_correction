@@ -3,7 +3,8 @@ services:
     name: htr
     env: node
     plan: starter
-    buildCommand: npm ci --production=false && npm run build && npm prune --production
+    # prisma stays in dependencies so migrate deploy works after production prune
+    buildCommand: npm ci --production=false && npx prisma generate && npm run build && npm prune --production
     startCommand: npx prisma migrate deploy && npm run start
     autoDeploy: false
     envVars:

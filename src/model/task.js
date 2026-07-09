@@ -2,6 +2,7 @@
 
 import prisma from "@/service/db";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 
 // get all tasks basd on the search params
 export const getAllTask = async (limit, skip) => {
@@ -96,26 +97,59 @@ export const getCompletedTaskCount = async (id, role, groupId) => {
 
 // get user progress based on the role, user id and group id
 export const UserProgressStats = async (id, role, groupId) => {
+  const roleFieldByRole = {
+    TRANSCRIBER: "transcriber_id",
+    REVIEWER: "reviewer_id",
+    FINAL_REVIEWER: "final_reviewer_id",
+  };
+  const roleField = roleFieldByRole[role];
+  if (!roleField) {
+    throw new Error(`Invalid role provided: ${role}`);
+  }
+
+  const completedStatesByRole = {
+    TRANSCRIBER: ["submitted", "accepted", "finalised"],
+    REVIEWER: ["accepted", "finalised"],
+    FINAL_REVIEWER: ["finalised"],
+  };
+  const passedStatesByRole = {
+    TRANSCRIBER: ["accepted", "finalised"],
+    REVIEWER: ["finalised"],
+    FINAL_REVIEWER: ["finalised"],
+  };
+
   try {
-    const completedTaskCount = await getCompletedTaskCount(id, role, groupId);
-    const totalTaskCount = await prisma.task.count({
-      where: {
-        group_id: parseInt(groupId),
-        [`${role.toLowerCase()}_id`]: parseInt(id),
-      },
-    });
-    // total task which are reviewed by reviewer and finalised by final reviewer
-    const totalTaskPassed = await prisma.task.count({
-      where: {
-        group_id: parseInt(groupId),
-        [`${role.toLowerCase()}_id`]: parseInt(id),
-        state:
-          role === "TRANSCRIBER"
-            ? { in: ["accepted", "finalised"] }
-            : "finalised",
-      },
-    });
-    return { completedTaskCount, totalTaskCount, totalTaskPassed };
+    const completedStates = completedStatesByRole[role];
+    const passedStates = passedStatesByRole[role];
+    const completedStateList = Prisma.join(
+      completedStates.map((state) => Prisma.sql`${state}::"State"`)
+    );
+    const passedStateList = Prisma.join(
+      passedStates.map((state) => Prisma.sql`${state}::"State"`)
+    );
+
+    // Single indexed scan instead of three sequential COUNT queries
+    const rows = await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT
+          COUNT(*)::int AS "totalTaskCount",
+          COUNT(*) FILTER (
+            WHERE state IN (${completedStateList})
+          )::int AS "completedTaskCount",
+          COUNT(*) FILTER (
+            WHERE state IN (${passedStateList})
+          )::int AS "totalTaskPassed"
+        FROM "Task"
+        WHERE group_id = ${parseInt(groupId)}
+          AND ${Prisma.raw(`"${roleField}"`)} = ${parseInt(id)}
+      `
+    );
+
+    return {
+      completedTaskCount: rows[0]?.completedTaskCount ?? 0,
+      totalTaskCount: rows[0]?.totalTaskCount ?? 0,
+      totalTaskPassed: rows[0]?.totalTaskPassed ?? 0,
+    };
   } catch (error) {
     console.error(
       `Failed to fetch user progress stats for role ${role}:`,

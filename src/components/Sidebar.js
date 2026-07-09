@@ -19,6 +19,7 @@ const Sidebar = ({
   setTaskList,
   userHistory,
   updateTaskAndIndex,
+  isSubmitting = false,
 }) => {
   const { completedTaskCount, totalTaskCount, totalTaskPassed } = userTaskStats;
   const value = useContext(AppContext);
@@ -75,6 +76,7 @@ const Sidebar = ({
                 updateTaskAndIndex={updateTaskAndIndex}
                 tasks={taskList}
                 role={role}
+                isSubmitting={isSubmitting}
               />
             </section>
             <section className="px-4 py-4 border-b border-b-[#384451]">

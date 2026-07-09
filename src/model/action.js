@@ -2,11 +2,63 @@
 
 import { formatTime } from "@/lib/formatTime";
 import prisma from "@/service/db";
-import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 const ASSIGN_TASKS = 10;
 const MAX_HISTORY = 10;
+
+const ROLE_PARAMS = {
+  TRANSCRIBER: { state: "transcribing", taskField: "transcriber_id" },
+  REVIEWER: { state: "submitted", taskField: "reviewer_id" },
+  FINAL_REVIEWER: { state: "accepted", taskField: "final_reviewer_id" },
+};
+
+const getTaskSelectForRole = (role) => {
+  const base = {
+    id: true,
+    group_id: true,
+    batch_id: true,
+    state: true,
+    diplomatic_context: true,
+    reviewer_rejected_count: true,
+    final_reviewer_rejected_count: true,
+  };
+
+  switch (role) {
+    case "TRANSCRIBER":
+      return {
+        ...base,
+        normalised_context: true,
+        corrected_context: true,
+      };
+    case "REVIEWER":
+      return {
+        ...base,
+        corrected_context: true,
+        reviewed_context: true,
+        transcriber: { select: { name: true } },
+      };
+    case "FINAL_REVIEWER":
+      return {
+        ...base,
+        reviewed_context: true,
+        final_reviewed_context: true,
+        transcriber: { select: { name: true } },
+        reviewer: { select: { name: true } },
+      };
+    default:
+      return {
+        ...base,
+        normalised_context: true,
+        corrected_context: true,
+        reviewed_context: true,
+        final_reviewed_context: true,
+        transcriber: { select: { name: true } },
+        reviewer: { select: { name: true } },
+      };
+  }
+};
+
 /**
  * Retrieves user details by email from the database.
  *
@@ -49,9 +101,12 @@ export const getUserTask = async (email) => {
   }
   // if user is found, get the task based on user role
   const { id: userId, group_id: groupId, role } = userData;
-  userTasks = await getTasksOrAssignMore(groupId, userId, role);
-  const userHistory = await getUserHistory(userId, groupId, role);
-  return { userTasks, userData, userHistory };
+  const [tasks, history] = await Promise.all([
+    getTasksOrAssignMore(groupId, userId, role),
+    getUserHistory(userId, groupId, role),
+  ]);
+  userTasks = tasks;
+  return { userTasks, userData, userHistory: history };
 };
 
 /**
@@ -64,44 +119,18 @@ export const getUserTask = async (email) => {
  * @throws {Error} Throws an error if unable to retrieve or assign tasks.
  */
 export const getTasksOrAssignMore = async (groupId, userId, role) => {
-  // Define role-specific parameters
-  const roleParams = {
-    TRANSCRIBER: { state: "transcribing", taskField: "transcriber_id" },
-    REVIEWER: {
-      state: "submitted",
-      taskField: "reviewer_id",
-    },
-    FINAL_REVIEWER: {
-      state: "accepted",
-      taskField: "final_reviewer_id",
-    },
-  };
+  const roleConfig = ROLE_PARAMS[role];
 
-  const { state, taskField } = roleParams[role];
-
-  if (!state || !taskField) {
+  if (!roleConfig) {
     throw new Error(`Invalid role provided: ${role}`);
   }
+
+  const { state, taskField } = roleConfig;
 
   try {
     let tasks = await prisma.task.findMany({
       where: { group_id: groupId, state, [taskField]: userId },
-      select: {
-        id: true,
-        group_id: true,
-        batch_id: true,
-        state: true,
-        diplomatic_context: true,
-        normalised_context: true,
-        corrected_context: true,
-        reviewed_context: true,
-        final_reviewed_context: true,
-        transcriber: { select: { name: true } },
-        reviewer: { select: { name: true } },
-        reviewer_rejected_count: true,
-        final_reviewer_rejected_count: true,
-      },
-      // orderBy: { batch_id: "asc" },
+      select: getTaskSelectForRole(role),
       take: ASSIGN_TASKS,
     });
 
@@ -120,19 +149,34 @@ export const getTasksOrAssignMore = async (groupId, userId, role) => {
   }
 };
 
+/**
+ * Prefetch a fresh batch of unassigned tasks (does not return already-queued assigned tasks).
+ * Safe to call while the user still has a few tasks left in their client queue.
+ */
+export const prefetchNextTaskBatch = async (groupId, userId, role) => {
+  const roleConfig = ROLE_PARAMS[role];
+  if (!roleConfig) {
+    throw new Error(`Invalid role provided: ${role}`);
+  }
+  const { state, taskField } = roleConfig;
+  return assignUnassignedTasks(groupId, state, taskField, userId);
+};
+
 export const assignUnassignedTasks = async (
   groupId,
   state,
   taskField,
   userId
 ) => {
-
-  const unassignedTasks = await prisma.$queryRaw(
+  // Step 1: resolve next batch_id only (no large TEXT columns).
+  // Ordering semantics match the previous query (prefix, numeric part, batch_id).
+  const nextBatchRows = await prisma.$queryRaw(
     Prisma.sql`
-      WITH ordered_batches AS (
-        SELECT DISTINCT 
+      SELECT batch_id
+      FROM (
+        SELECT DISTINCT
           batch_id,
-          SPLIT_PART(batch_id, '-', 1) as prefix,
+          SPLIT_PART(batch_id, '-', 1) AS prefix,
           COALESCE(
             NULLIF(
               REGEXP_REPLACE(
@@ -140,22 +184,31 @@ export const assignUnassignedTasks = async (
                 '[^0-9]',
                 '',
                 'g'
-              ), 
+              ),
               ''
-            )::INTEGER, 
+            )::INTEGER,
             0
-          ) as numeric_part
+          ) AS numeric_part
         FROM "Task"
         WHERE group_id = ${groupId}
           AND state = ${state}::"State"
-          AND ${Prisma.raw(taskField)} IS NULL
-        ORDER BY 
-          prefix ASC,
-          numeric_part,
-          batch_id
-        LIMIT 1
-      )
-      SELECT 
+          AND ${Prisma.raw(`"${taskField}"`)} IS NULL
+      ) batches
+      ORDER BY prefix ASC, numeric_part ASC, batch_id ASC
+      LIMIT 1
+    `
+  );
+
+  if (!nextBatchRows.length) {
+    return [];
+  }
+
+  const batchId = nextBatchRows[0].batch_id;
+
+  // Step 2: fetch only the tasks for that batch (still limited to ASSIGN_TASKS).
+  const unassignedTasks = await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
         t.id,
         t.group_id,
         t.state,
@@ -167,16 +220,16 @@ export const assignUnassignedTasks = async (
         t.final_reviewed_context,
         t.reviewer_rejected_count,
         t.final_reviewer_rejected_count,
-        tr.name as "transcriber.name",
-        r.name as "reviewer.name"
+        tr.name AS "transcriber.name",
+        r.name AS "reviewer.name"
       FROM "Task" t
       LEFT JOIN "User" tr ON t.transcriber_id = tr.id
       LEFT JOIN "User" r ON t.reviewer_id = r.id
-      WHERE 
+      WHERE
         t.group_id = ${groupId}
         AND t.state = ${state}::"State"
-        AND t.${Prisma.raw(taskField)} IS NULL
-        AND t.batch_id = (SELECT batch_id FROM ordered_batches)
+        AND t.${Prisma.raw(`"${taskField}"`)} IS NULL
+        AND t.batch_id = ${batchId}
       LIMIT ${ASSIGN_TASKS}
     `
   );
@@ -188,7 +241,14 @@ export const assignUnassignedTasks = async (
     });
   }
 
-  return unassignedTasks;
+  // Normalize shape for clients that expect nested relation objects from Prisma.
+  return unassignedTasks.map((task) => ({
+    ...task,
+    transcriber: task["transcriber.name"]
+      ? { name: task["transcriber.name"] }
+      : null,
+    reviewer: task["reviewer.name"] ? { name: task["reviewer.name"] } : null,
+  }));
 };
 
 // get all the history of a user based on userId
@@ -220,7 +280,6 @@ export const getUserHistory = async (userId, groupId, role) => {
       ],
       take: MAX_HISTORY,
     });
-    revalidatePath("/");
     return userHistory;
   } catch (error) {
     console.error("Failed to retrieve user history:", error);
@@ -287,11 +346,11 @@ export const updateTask = async (
       } else {
         dataToUpdate.corrected_context = null;
       }
-      
+
       dataToUpdate.submitted_at = new Date().toISOString();
       dataToUpdate.duration = duration;
       break;
-    
+
     case "REVIEWER":
       // Save the reviewed_context (already processed by UI business logic)
       if (changedTask.state === "accepted") {
@@ -299,14 +358,14 @@ export const updateTask = async (
       } else {
         dataToUpdate.reviewed_context = null;
       }
-      
+
       dataToUpdate.reviewed_at = new Date().toISOString();
       dataToUpdate.reviewer_rejected_count =
         changedTask.state === "transcribing"
           ? task.reviewer_rejected_count + 1
           : task.reviewer_rejected_count;
       break;
-    
+
     case "FINAL_REVIEWER":
       // Save the final_reviewed_context (already processed by UI business logic)
       if (changedTask.state === "finalised") {
@@ -314,7 +373,7 @@ export const updateTask = async (
       } else {
         dataToUpdate.final_reviewed_context = null;
       }
-      
+
       dataToUpdate.final_reviewed_at = new Date().toISOString();
       dataToUpdate.final_reviewer_rejected_count =
         changedTask.state === "submitted"
@@ -334,8 +393,6 @@ export const updateTask = async (
 
     const msg = await taskToastMsg(action);
 
-    // Assuming revalidatePath is a function to refresh or redirect the page
-    revalidatePath("/");
     return { msg, updatedTask };
   } catch (error) {
     console.error(`Error updating ${role} task:`, error);

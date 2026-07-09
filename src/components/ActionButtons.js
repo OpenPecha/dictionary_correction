@@ -4,7 +4,13 @@ import { BsCheckLg, BsXLg } from "react-icons/bs";
 import { useContext, useEffect } from "react";
 import AppContext from "./AppContext";
 import { AiOutlineStop } from "react-icons/ai";
-const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
+const ActionButtons = ({
+  updateTaskAndIndex,
+  tasks,
+  transcript,
+  role,
+  isSubmitting = false,
+}) => {
   // a = 65 submit, x = 88 reject , s = 83 save, t = 84 trash
   const value = useContext(AppContext);
   let { lang } = value;
@@ -16,18 +22,21 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, []);
+  }, [isSubmitting]);
 
   const handleKeyPress = (e) => {
+    if (isSubmitting) {
+      return;
+    }
     // Alt/Option + a = submit, Alt/Option + x reject , Alt/Option + s = save, Alt/Option + t = trash
     if (e.altKey && e.keyCode === 65) {
-      document.getElementById("submit-button").click();
+      document.getElementById("submit-button")?.click();
       return;
     } else if (e.altKey && e.keyCode === 88) {
-      document.getElementById("reject-button").click();
+      document.getElementById("reject-button")?.click();
       return;
     } else if (e.altKey && e.keyCode === 84) {
-      document.getElementById("trash-button").click();
+      document.getElementById("trash-button")?.click();
       return;
     }
   };
@@ -40,6 +49,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
         tooltipText="Submit(Alt + a)"
         icon={BsCheckLg}
         text={lang.submit}
+        disabled={isSubmitting}
         onClickAction={() => updateTaskAndIndex("submit", transcript, tasks[0])}
       />
       {role !== "TRANSCRIBER" && (
@@ -49,6 +59,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
           tooltipText="Reject(Alt + x)"
           icon={BsXLg}
           text={lang.reject}
+          disabled={isSubmitting}
           onClickAction={() =>
             updateTaskAndIndex("reject", transcript, tasks[0])
           }
@@ -62,6 +73,7 @@ const ActionButtons = ({ updateTaskAndIndex, tasks, transcript, role }) => {
           tooltipText="Trash(Alt + t)"
           icon={AiOutlineStop}
           text={lang.ignore}
+          disabled={isSubmitting}
           onClickAction={() =>
             updateTaskAndIndex("trash", transcript, tasks[0])
           }
@@ -78,13 +90,15 @@ const ButtonWithTooltip = ({
   icon: Icon,
   text,
   onClickAction,
+  disabled = false,
 }) => (
   <div className="md:tooltip tooltip-top" data-tip={tooltipText}>
     <button
       id={id}
       type="button"
       title={tooltipText}
-      className={`focus:outline-none text-white ${bgColor} font-medium text-md w-24 h-full py-4`}
+      disabled={disabled}
+      className={`focus:outline-none text-white ${bgColor} font-medium text-md w-24 h-full py-4 disabled:opacity-60 disabled:cursor-not-allowed`}
       onClick={onClickAction}
     >
       <div className="flex gap-2 flex-col items-center">

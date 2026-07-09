@@ -38,6 +38,14 @@ model Task {
   group                         Group     @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reviewer                      User?     @relation("ReviewerTasks", fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   transcriber                   User?     @relation("TranscriberTasks", fields: [transcriber_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([group_id, state, transcriber_id])
+  @@index([group_id, state, reviewer_id])
+  @@index([group_id, state, final_reviewer_id])
+  @@index([group_id, state, batch_id])
+  @@index([transcriber_id, state, group_id])
+  @@index([reviewer_id, state, group_id])
+  @@index([final_reviewer_id, state, group_id])
 }
 
 model User {
