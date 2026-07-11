@@ -168,34 +168,38 @@ export const assignUnassignedTasks = async (
   taskField,
   userId
 ) => {
-  // Step 1: resolve next batch_id only (no large TEXT columns).
+  // Step 1: resolve the next batch_ids. DISTINCT runs first (served by the
+  // partial "Task_unassigned_*" indexes), so the prefix/numeric sort keys are
+  // computed on the small distinct set instead of on every unassigned row.
   // Ordering semantics match the previous query (prefix, numeric part, batch_id).
+  // Take up to ASSIGN_TASKS batch ids so nearly-exhausted batches (with only a
+  // task or two left unassigned) don't produce short queues.
   const nextBatchRows = await prisma.$queryRaw(
     Prisma.sql`
       SELECT batch_id
       FROM (
-        SELECT DISTINCT
-          batch_id,
-          SPLIT_PART(batch_id, '-', 1) AS prefix,
-          COALESCE(
-            NULLIF(
-              REGEXP_REPLACE(
-                SPLIT_PART(batch_id, '-', 2),
-                '[^0-9]',
-                '',
-                'g'
-              ),
-              ''
-            )::INTEGER,
-            0
-          ) AS numeric_part
+        SELECT DISTINCT batch_id
         FROM "Task"
         WHERE group_id = ${groupId}
           AND state = ${state}::"State"
           AND ${Prisma.raw(`"${taskField}"`)} IS NULL
       ) batches
-      ORDER BY prefix ASC, numeric_part ASC, batch_id ASC
-      LIMIT 1
+      ORDER BY
+        SPLIT_PART(batch_id, '-', 1) ASC,
+        COALESCE(
+          NULLIF(
+            REGEXP_REPLACE(
+              SPLIT_PART(batch_id, '-', 2),
+              '[^0-9]',
+              '',
+              'g'
+            ),
+            ''
+          )::INTEGER,
+          0
+        ) ASC,
+        batch_id ASC
+      LIMIT ${ASSIGN_TASKS}
     `
   );
 
@@ -203,9 +207,14 @@ export const assignUnassignedTasks = async (
     return [];
   }
 
-  const batchId = nextBatchRows[0].batch_id;
+  const batchIds = nextBatchRows.map((row) => row.batch_id);
 
-  // Step 2: fetch only the tasks for that batch (still limited to ASSIGN_TASKS).
+  // Step 2: fill up to ASSIGN_TASKS tasks across those batches, in batch order.
+  // A LATERAL per-batch LIMIT lets Postgres use the partial "Task_unassigned_*"
+  // index and stop as soon as the queue is full — usually after the first batch —
+  // instead of fetching and sorting every unassigned row in all selected batches.
+  // Ordinality preserves batch priority; rows within a batch are unordered (as
+  // before this optimization), which is fine since batch items are independent.
   const unassignedTasks = await prisma.$queryRaw(
     Prisma.sql`
       SELECT
@@ -222,21 +231,30 @@ export const assignUnassignedTasks = async (
         t.final_reviewer_rejected_count,
         tr.name AS "transcriber.name",
         r.name AS "reviewer.name"
-      FROM "Task" t
+      FROM unnest(${batchIds}::text[]) WITH ORDINALITY AS b(batch_id, ord)
+      CROSS JOIN LATERAL (
+        SELECT t2.*
+        FROM "Task" t2
+        WHERE t2.group_id = ${groupId}
+          AND t2.state = ${state}::"State"
+          AND t2.${Prisma.raw(`"${taskField}"`)} IS NULL
+          AND t2.batch_id = b.batch_id
+        LIMIT ${ASSIGN_TASKS}
+      ) t
       LEFT JOIN "User" tr ON t.transcriber_id = tr.id
       LEFT JOIN "User" r ON t.reviewer_id = r.id
-      WHERE
-        t.group_id = ${groupId}
-        AND t.state = ${state}::"State"
-        AND t.${Prisma.raw(`"${taskField}"`)} IS NULL
-        AND t.batch_id = ${batchId}
+      ORDER BY b.ord ASC
       LIMIT ${ASSIGN_TASKS}
     `
   );
 
   if (unassignedTasks.length > 0) {
     await prisma.task.updateMany({
-      where: { id: { in: unassignedTasks.map((task) => task.id) } },
+      where: {
+        id: { in: unassignedTasks.map((task) => task.id) },
+        // Guard against assigning tasks another user grabbed concurrently
+        [taskField]: null,
+      },
       data: { [taskField]: userId },
     });
   }

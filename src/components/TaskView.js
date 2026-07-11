@@ -82,8 +82,13 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
     return prefetchPromiseRef.current;
   }, [groupId, userId, role]);
 
+  // Initial stats fetch; afterwards the completed count is bumped optimistically
+  // on submit and re-synced from the server once per batch load.
   useEffect(() => {
     getUserProgress();
+  }, [getUserProgress]);
+
+  useEffect(() => {
     // Assign a value to currentTimeRef.current
     currentTimeRef.current = new Date().toISOString();
     if (taskList?.length) {
@@ -113,7 +118,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
     } else {
       setIsLoading(false);
     }
-  }, [taskList, role, getUserProgress, ensurePrefetch]);
+  }, [taskList, role, ensurePrefetch]);
 
   const validateSubmission = () => {
     // User must select either YES or NO
@@ -193,6 +198,8 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
         moreTasks = await getTasksOrAssignMore(groupId, userId, role);
       }
       setTaskList(moreTasks || []);
+      // Re-sync the optimistic progress counters once per batch
+      getUserProgress();
     } catch (error) {
       console.error("Failed to load next task batch:", error);
       toast.error("Failed to load next tasks. Please refresh.");
@@ -225,18 +232,45 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
     const remainingTasks = taskList.slice(1);
     const updatedTask = applyRoleBusinessLogic(action, currentTask);
     const submitTime = currentTimeRef.current;
+    const isLastTask = remainingTasks.length === 0;
 
     setIsSubmitting(true);
 
+    let rolledBack = false;
+    let nextBatchEarly = null;
+
+    const rollbackTask = () => {
+      rolledBack = true;
+      setTaskList((prev) =>
+        prev.some((task) => task.id === currentTask.id)
+          ? prev
+          : [currentTask, ...prev]
+      );
+      setIsLoading(false);
+    };
+
     // Optimistic UI: advance to the next task immediately; persist in background
-    if (remainingTasks.length > 0) {
+    if (!isLastTask) {
       setTaskList(remainingTasks);
       if (action === "submit") {
         currentTimeRef.current = new Date().toISOString();
       }
     } else {
-      // Last task in queue — show loading while we take the prefetched/assigned batch
+      // Last task in queue — swap in the prefetched batch as soon as it is
+      // ready instead of holding the loading screen on the submit round trip
       setIsLoading(true);
+      if (prefetchPromiseRef.current) {
+        nextBatchEarly = prefetchPromiseRef.current;
+        prefetchPromiseRef.current = null;
+        nextBatchEarly.then((moreTasks) => {
+          // If the submit failed and rolled back, drop this batch: appending it
+          // would duplicate tasks that loadNextBatch re-fetches on retry. The
+          // rows stay assigned to this user in the DB and resurface next load.
+          if (rolledBack || !moreTasks?.length) return;
+          setTaskList(moreTasks);
+          getUserProgress();
+        });
+      }
     }
 
     try {
@@ -251,8 +285,7 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
 
       if (error || msg?.error) {
         // Roll back optimistic removal so the user can retry
-        setTaskList((prev) => [currentTask, ...prev]);
-        setIsLoading(false);
+        rollbackTask();
         toast.error(error || msg.error);
         return;
       }
@@ -260,17 +293,26 @@ const TaskView = ({ tasks, userDetail, language, userHistory }) => {
       toast.success(msg.success);
 
       if (action === "submit") {
-        getUserProgress();
+        // Optimistic counter; re-synced from the server on each batch load.
+        // A FINAL_REVIEWER submit finalises the task, which also counts as passed.
+        setUserTaskStats((prev) => ({
+          ...prev,
+          completedTaskCount: prev.completedTaskCount + 1,
+          totalTaskPassed:
+            role === "FINAL_REVIEWER"
+              ? prev.totalTaskPassed + 1
+              : prev.totalTaskPassed,
+        }));
       }
 
-      if (remainingTasks.length === 0) {
-        await loadNextBatch();
-      } else if (remainingTasks.length <= PREFETCH_THRESHOLD) {
-        ensurePrefetch();
+      if (isLastTask) {
+        const earlyBatch = nextBatchEarly ? await nextBatchEarly : null;
+        if (!earlyBatch?.length) {
+          await loadNextBatch();
+        }
       }
     } catch (error) {
-      setTaskList((prev) => [currentTask, ...prev]);
-      setIsLoading(false);
+      rollbackTask();
       toast.error("Failed to update task. Please try again.");
       console.error(error);
     } finally {
